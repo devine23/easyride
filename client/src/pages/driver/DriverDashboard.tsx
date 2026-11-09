@@ -5,7 +5,7 @@ import {
   ToggleLeft, ToggleRight, Star, TrendingUp, Loader, ArrowLeft,
   Clock3, FileCheck, AlertTriangle, Upload, Camera,
   User, LogOut, Bell, BellOff, ChevronRight, Layers,
-  RotateCcw, Send, Package,
+  RotateCcw, Send, Package, Wallet, Lock,
 } from 'lucide-react'
 import api from '../../services/api'
 import Navbar from '../../components/Navbar'
@@ -14,10 +14,11 @@ import PageHeader, { useSwipeBack } from '../../components/PageHeader'
 import MapView, { RouteInfo } from '../../components/MapView'
 import ChatPanel from '../../components/ChatPanel'
 import CallModal from '../../components/CallModal'
+import IncomingBidCard from '../../components/IncomingBidCard'
 import { useAuth } from '../../context/AuthContext'
 import { useSocket } from '../../context/SocketContext'
 import { useGeolocation } from '../../hooks/useGeolocation'
-import { Ride, Payout, LostItem } from '../../types'
+import { Ride, Payout, LostItem, Bid } from '../../types'
 import { useBackButton } from '../../hooks/useBackButton'
 
 const NAV = [
@@ -78,6 +79,11 @@ export default function DriverDashboard() {
   const [counterFareIn,  setCounterFareIn]  = useState('')
   const [counterSent,    setCounterSent]    = useState(false)
   const [counterLoading, setCounterLoading] = useState(false)
+
+  // Bidding (InDrive-style)
+  const [incomingBid,  setIncomingBid]  = useState<Bid | null>(null)
+  const [wallet,       setWallet]       = useState<{ balance: number; heldBalance: number; total: number } | null>(null)
+  const [walletLocked, setWalletLocked] = useState<{ required: number; balance: number } | null>(null)
   const [history, setHistory]         = useState<Ride[]>([])
   const [showChat, setShowChat]       = useState(false)
   const [callState, setCallState]     = useState<{ open: boolean; type: 'audio' | 'video' }>({ open: false, type: 'audio' })
@@ -320,6 +326,33 @@ export default function DriverDashboard() {
     return () => { socket.off('ride:new', handleRideNew) }
   }, [socket, isOnline])
 
+  // Bidding listeners — bid:new surfaces the full-screen card, wallet:locked
+  // shows a banner so the driver knows why bids are being skipped.
+  useEffect(() => {
+    if (!socket) return
+    const onBidNew = (bid: Bid) => {
+      if (!isOnline) return
+      if (activeRide) return
+      if (incomingBid) return
+      setIncomingBid(bid)
+    }
+    const onWalletLocked = ({ required, balance }: { required: number; balance: number }) => {
+      setWalletLocked({ required, balance })
+    }
+    socket.on('bid:new', onBidNew)
+    socket.on('wallet:locked', onWalletLocked)
+    return () => { socket.off('bid:new', onBidNew); socket.off('wallet:locked', onWalletLocked) }
+  }, [socket, isOnline, activeRide, incomingBid])
+
+  // Load wallet on mount + whenever the driver goes online / a ride completes
+  // (commission is deducted on acceptance so balance may change).
+  useEffect(() => {
+    if (user?.role !== 'driver') return
+    api.get('/bids/_wallet/me')
+      .then(r => setWallet({ balance: r.data.balance, heldBalance: r.data.heldBalance, total: r.data.total }))
+      .catch(() => { /* no wallet yet — treated as 0 on server */ })
+  }, [user?.id, isOnline, activeRide?.id])
+
   async function handleAccept() {
     if (!pendingRide) return
     setAcceptLoading(true)
@@ -392,6 +425,55 @@ export default function DriverDashboard() {
                 </div>
               }
             />
+
+            {/* Wallet locked banner — appears when driver missed a bid because wallet too low */}
+            {walletLocked && (
+              <div className="card p-3 mb-3 d-flex align-items-start gap-3"
+                   style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)' }}>
+                <div className="rounded-xl d-flex align-items-center justify-content-center flex-shrink-0"
+                     style={{ width: 40, height: 40, background: 'rgba(239,68,68,0.15)' }}>
+                  <Lock size={20} style={{ color: '#f87171' }} />
+                </div>
+                <div className="flex-grow-1">
+                  <p className="fw-semibold mb-1" style={{ color: '#fca5a5' }}>Wallet balance too low</p>
+                  <p className="text-xs text-muted mb-0">
+                    You need ${walletLocked.required.toFixed(2)} in your wallet to receive this bid
+                    (current: ${walletLocked.balance.toFixed(2)}). Top up to keep receiving offers.
+                  </p>
+                </div>
+                <button onClick={() => setWalletLocked(null)}
+                        className="btn btn-link text-muted p-0 flex-shrink-0" aria-label="Dismiss">
+                  <XCircle size={18} />
+                </button>
+              </div>
+            )}
+
+            {/* Wallet tile — balance + held, with top-up CTA when low */}
+            {wallet && (
+              <div className="card p-3 mb-3 d-flex align-items-center gap-3"
+                   style={{ borderColor: wallet.balance < 1 ? 'rgba(239,68,68,0.4)' : 'var(--eg-600)' }}>
+                <div className="rounded-xl d-flex align-items-center justify-content-center flex-shrink-0"
+                     style={{ width: 44, height: 44, background: 'rgba(96,165,250,0.15)' }}>
+                  <Wallet size={22} style={{ color: '#60a5fa' }} />
+                </div>
+                <div className="flex-grow-1">
+                  <p className="text-xs text-muted mb-1">Driver wallet</p>
+                  <p className="fw-bold mb-0" style={{ fontSize: '1.3rem' }}>
+                    ${wallet.balance.toFixed(2)}
+                    {wallet.heldBalance > 0 && (
+                      <span className="text-xs text-muted fw-normal ms-2">
+                        · ${wallet.heldBalance.toFixed(2)} held
+                      </span>
+                    )}
+                  </p>
+                </div>
+                {wallet.balance < 1 && (
+                  <span className="badge rounded-pill" style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171' }}>
+                    Low
+                  </span>
+                )}
+              </div>
+            )}
 
             {/* Stats */}
             <div className="row g-3 mb-4">
@@ -1236,6 +1318,19 @@ export default function DriverDashboard() {
           peerName="Client"
           callType={callState.type}
           onEnd={() => setCallState({ open: false, type: 'audio' })}
+        />
+      )}
+
+      {/* ── Incoming bid takeover ──────────────────────────────────────── */}
+      {incomingBid && (
+        <IncomingBidCard
+          bid={incomingBid}
+          onWon={ride => {
+            setIncomingBid(null)
+            setActiveRide(ride)
+            navigateTo('active')
+          }}
+          onDismiss={() => setIncomingBid(null)}
         />
       )}
 
