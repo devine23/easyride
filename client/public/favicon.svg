@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Background rounded square -->
+  <rect width="32" height="32" rx="7" fill="#060f1e"/>
+
+  <!-- Subtle glow bloom behind car -->
+  <ellipse cx="16" cy="21" rx="13" ry="7" fill="rgba(34,197,94,0.07)"/>
+
+  <!-- Car body — side profile -->
+  <path d="M4 22 L4 17.5 Q5.5 15 8.5 13.5 L11 12 L21 12 L23.5 13.5 Q26.5 15 28 17.5 L28 22 Z" fill="#22c55e"/>
+
+  <!-- Cabin roof highlight (lighter top edge) -->
+  <path d="M11 12 L21 12 L23.5 13.5 Q26.5 15 28 17.5 L4 17.5 Q5.5 15 8.5 13.5 Z" fill="#4ade80" opacity="0.18"/>
+
+  <!-- Window glass cutout -->
+  <path d="M12.5 12 L11.2 17 L20.8 17 L19.5 12 Z" fill="#040d17" opacity="0.42"/>
+
+  <!-- Door line -->
+  <line x1="16" y1="12.2" x2="16" y2="17" stroke="#040d17" stroke-width="0.7" opacity="0.3"/>
+
+  <!-- Rear wheel well -->
+  <circle cx="9" cy="22.5" r="3.8" fill="#060f1e"/>
+  <!-- Rear wheel tyre -->
+  <circle cx="9" cy="22.5" r="3.8" fill="none" stroke="#22c55e" stroke-width="0.6"/>
+  <!-- Rear rim ring -->
+  <circle cx="9" cy="22.5" r="2.2" fill="none" stroke="#4ade80" stroke-width="1.3"/>
+  <!-- Rear hub dot -->
+  <circle cx="9" cy="22.5" r="0.75" fill="#4ade80"/>
+
+  <!-- Front wheel well -->
+  <circle cx="23" cy="22.5" r="3.8" fill="#060f1e"/>
+  <circle cx="23" cy="22.5" r="3.8" fill="none" stroke="#22c55e" stroke-width="0.6"/>
+  <circle cx="23" cy="22.5" r="2.2" fill="none" stroke="#4ade80" stroke-width="1.3"/>
+  <circle cx="23" cy="22.5" r="0.75" fill="#4ade80"/>
+
+  <!-- Headlight (front right) -->
+  <rect x="26.8" y="17.2" width="2.2" height="2" rx="0.8" fill="#fde68a" opacity="0.95"/>
+
+  <!-- Tail light (rear left) -->
+  <rect x="3" y="17.2" width="1.8" height="2" rx="0.6" fill="#f87171" opacity="0.85"/>
+
+  <!-- Speed motion lines -->
+  <line x1="1" y1="18.5" x2="4.5" y2="18.5" stroke="#4ade80" stroke-width="1.3" stroke-linecap="round" opacity="0.45"/>
+  <line x1="1.5" y1="20.8" x2="4" y2="20.8" stroke="#4ade80" stroke-width="1" stroke-linecap="round" opacity="0.28"/>
+</svg>

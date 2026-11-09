@@ -1,0 +1,464 @@
+/* ─── EasyRide Bootstrap Dark Theme ─────────────────────────────────────── */
+
+:root, [data-bs-theme="dark"] {
+  /* Background layers */
+  --bs-body-bg:          #0a0f1e;
+  --bs-body-color:       #f9fafb;
+  --bs-emphasis-color:   #ffffff;
+  --bs-secondary-bg:     #111827;
+  --bs-tertiary-bg:      #1f2937;
+  --bs-border-color:     #374151;
+  --bs-border-color-translucent: rgba(255,255,255,0.08);
+
+  /* Brand green replaces Bootstrap primary */
+  --bs-primary:          #22c55e;
+  --bs-primary-rgb:      34, 197, 94;
+  --bs-link-color:       #4ade80;
+  --bs-link-hover-color: #86efac;
+
+  /* Bootstrap component overrides */
+  --bs-card-bg:                #111827;
+  --bs-card-border-color:      #374151;
+  --bs-card-border-radius:     1rem;
+
+  --bs-input-bg:               #1f2937;
+  --bs-input-color:            #ffffff;
+  --bs-input-border-color:     #374151;
+  --bs-input-focus-border-color: #22c55e;
+  --bs-input-focus-box-shadow: 0 0 0 0.2rem rgba(34,197,94,0.2);
+  --bs-input-placeholder-color: #6b7280;
+
+  --bs-modal-bg:               #111827;
+  --bs-modal-border-color:     #374151;
+
+  --bs-list-group-bg:          #111827;
+  --bs-list-group-border-color: #374151;
+
+  --bs-dropdown-bg:            #111827;
+  --bs-dropdown-border-color:  #374151;
+  --bs-dropdown-link-color:    #f9fafb;
+  --bs-dropdown-link-hover-bg: #1f2937;
+
+  --bs-table-bg:               transparent;
+  --bs-table-border-color:     #374151;
+  --bs-table-striped-bg:       rgba(255,255,255,0.03);
+  --bs-table-hover-bg:         rgba(255,255,255,0.04);
+
+  --bs-nav-tabs-border-color:            #374151;
+  --bs-nav-tabs-link-active-color:       #4ade80;
+  --bs-nav-tabs-link-active-bg:          #111827;
+  --bs-nav-tabs-link-active-border-color: #374151 #374151 #111827;
+
+  --bs-pagination-bg:          #111827;
+  --bs-pagination-border-color: #374151;
+  --bs-pagination-color:       #9ca3af;
+  --bs-pagination-hover-bg:    #1f2937;
+  --bs-pagination-active-bg:   #22c55e;
+  --bs-pagination-active-border-color: #22c55e;
+
+  /* App-specific tokens */
+  --eg-brand:    #22c55e;
+  --eg-brand-hover: #16a34a;
+  --eg-brand-dim: rgba(34,197,94,0.15);
+  --eg-900: #0a0f1e;
+  --eg-800: #111827;
+  --eg-700: #1f2937;
+  --eg-600: #374151;
+}
+
+/* ─── Base ─────────────────────────────────────────────────────────────────── */
+/* Pattern 1 defence: ensure the root scroll chain is never trapped.
+   DO NOT set overflow-x: hidden on html/body — it breaks `position: sticky`
+   on descendants (any ancestor with any overflow != visible creates a new
+   scrolling context that sticky can't reach past). */
+html, body {
+  height: auto;
+  min-height: 100%;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+}
+#root {
+  min-height: 100vh;
+}
+
+body {
+  background-color: var(--bs-body-bg);
+  color: var(--bs-body-color);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Pattern 3 defence: a flex-grow-1 child must have min-height: 0, otherwise
+   its own `overflow-y: auto` cannot shrink below its content and the
+   scrollbar never appears. Covers the common ChatPanel / lost-item thread case. */
+.flex-grow-1.overflow-y-auto,
+.flex-grow-1.overflow-auto {
+  min-height: 0;
+}
+
+/* Pattern 2 defence: focused inputs/buttons and anchor jumps must not land
+   under fixed 56-px topbar + 48-px nav pills. Covers both admin and rider pages. */
+[data-scroll-anchor],
+.form-control:focus,
+.form-select:focus,
+input:focus,
+textarea:focus,
+button:focus {
+  scroll-margin-top: 120px;
+  scroll-margin-bottom: 90px;
+}
+
+/* Pattern 4 defence: anything the BottomNav would cover on long pages must
+   have breathing room. .eg-main already handles this for dashboards; this
+   covers forms (Register, auth, modals) that don't use .eg-main. */
+form:not(.inline-form) {
+  padding-bottom: 1rem;
+}
+
+/* Eliminate 300ms tap delay on Android WebView */
+button, a, [role="button"] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+a { color: var(--eg-brand); text-decoration: none; }
+a:hover { color: #86efac; }
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--eg-800); }
+::-webkit-scrollbar-thumb { background: var(--eg-600); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--eg-brand); }
+
+/* ─── Buttons ───────────────────────────────────────────────────────────────── */
+.btn-primary {
+  --bs-btn-bg: #22c55e;
+  --bs-btn-border-color: #22c55e;
+  --bs-btn-color: #fff;
+  --bs-btn-hover-bg: #16a34a;
+  --bs-btn-hover-border-color: #16a34a;
+  --bs-btn-hover-color: #fff;
+  --bs-btn-active-bg: #15803d;
+  --bs-btn-focus-shadow-rgb: 34, 197, 94;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+.btn-primary:active { transform: scale(0.97); }
+.btn-primary:disabled { opacity: 0.5; }
+
+.btn-secondary {
+  --bs-btn-bg: #1f2937;
+  --bs-btn-border-color: #374151;
+  --bs-btn-color: #f9fafb;
+  --bs-btn-hover-bg: #374151;
+  --bs-btn-hover-border-color: #4b5563;
+  --bs-btn-hover-color: #fff;
+  border-radius: 0.75rem;
+  font-weight: 600;
+}
+
+.btn-outline-primary {
+  --bs-btn-color: #4ade80;
+  --bs-btn-border-color: #22c55e;
+  --bs-btn-hover-bg: #22c55e;
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-border-color: #22c55e;
+  --bs-btn-active-bg: #16a34a;
+  border-radius: 0.75rem;
+  font-weight: 600;
+}
+
+.btn-danger {
+  border-radius: 0.75rem;
+  font-weight: 600;
+}
+
+/* ─── Forms ─────────────────────────────────────────────────────────────────── */
+.form-control, .form-select {
+  background-color: var(--eg-700);
+  border-color: var(--eg-600);
+  color: #fff;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.form-control::placeholder { color: #6b7280; }
+.form-control:focus, .form-select:focus {
+  background-color: var(--eg-700);
+  border-color: var(--eg-brand);
+  color: #fff;
+  box-shadow: 0 0 0 0.2rem rgba(34,197,94,0.2);
+}
+.form-select option { background-color: var(--eg-800); }
+.form-label { font-size: 0.8rem; color: #9ca3af; margin-bottom: 0.35rem; font-weight: 500; }
+.input-group-text {
+  background-color: var(--eg-700);
+  border-color: var(--eg-600);
+  color: #9ca3af;
+}
+
+/* ─── Cards ─────────────────────────────────────────────────────────────────── */
+.card {
+  background-color: var(--eg-800);
+  border-color: var(--eg-600);
+  border-radius: 1rem;
+}
+.card-header {
+  background-color: transparent;
+  border-bottom-color: var(--eg-600);
+}
+.card-footer {
+  background-color: transparent;
+  border-top-color: var(--eg-600);
+}
+.card-glass {
+  background: rgba(255,255,255,0.04);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 1rem;
+}
+
+/* ─── Badges ─────────────────────────────────────────────────────────────────── */
+.badge-brand {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: rgba(34,197,94,0.15); color: #4ade80;
+  border: 1px solid rgba(34,197,94,0.3); border-radius: 999px;
+  padding: 0.2rem 0.65rem; font-size: 0.72rem; font-weight: 600;
+}
+.badge-warn {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: rgba(234,179,8,0.15); color: #fbbf24;
+  border: 1px solid rgba(234,179,8,0.3); border-radius: 999px;
+  padding: 0.2rem 0.65rem; font-size: 0.72rem; font-weight: 600;
+}
+.badge-danger-soft {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: rgba(239,68,68,0.15); color: #f87171;
+  border: 1px solid rgba(239,68,68,0.3); border-radius: 999px;
+  padding: 0.2rem 0.65rem; font-size: 0.72rem; font-weight: 600;
+}
+.badge-info-soft {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: rgba(59,130,246,0.15); color: #60a5fa;
+  border: 1px solid rgba(59,130,246,0.3); border-radius: 999px;
+  padding: 0.2rem 0.65rem; font-size: 0.72rem; font-weight: 600;
+}
+
+/* ─── Sidebar ─────────────────────────────────────────────────────────────────── */
+.eg-sidebar {
+  background-color: var(--eg-800);
+  border-right: 1px solid var(--eg-600);
+  width: 260px;
+  position: fixed; top: 0; left: 0; bottom: 0;
+  display: flex; flex-direction: column;
+  padding: 1.5rem 1rem;
+  z-index: 1040;
+  overflow-y: auto;
+}
+.eg-sidebar .sidebar-link {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.7rem 0.9rem; border-radius: 0.75rem;
+  color: #9ca3af; cursor: pointer;
+  border: none; background: transparent;
+  width: 100%; text-align: left;
+  transition: all 0.15s; font-size: 0.9rem;
+  font-weight: 500;
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+.eg-sidebar .sidebar-link:hover { color: #fff; background-color: var(--eg-700); }
+.eg-sidebar .sidebar-link.active {
+  color: #4ade80; background-color: rgba(34,197,94,0.1);
+  border: 1px solid rgba(34,197,94,0.2);
+}
+
+/* Mobile top bar */
+.eg-topbar {
+  background-color: var(--eg-800);
+  border-bottom: 1px solid var(--eg-600);
+  height: 56px;
+}
+
+/* Main content */
+/* Dashboard main content wrapper.
+   padding-top/bottom use !important to beat Bootstrap utility classes
+   (.p-3, .py-3 etc.) which would otherwise override and bury content
+   behind the fixed topbar (56 px) and BottomNav (62 px). */
+.eg-main {
+  margin-left: 0;
+  min-height: 100vh;
+  padding-top: 72px !important;      /* 56 topbar + 16 breathing room */
+  padding-bottom: 90px !important;   /* 62 BottomNav + 8 safe-area + 20 buffer */
+}
+
+/* Mobile offcanvas sidebar */
+.eg-offcanvas {
+  background-color: var(--eg-800) !important;
+  border-right: 1px solid var(--eg-600) !important;
+  width: 260px !important;
+}
+.eg-offcanvas .sidebar-link {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.7rem 0.9rem; border-radius: 0.75rem;
+  color: #9ca3af; cursor: pointer;
+  border: none; background: transparent;
+  width: 100%; text-align: left;
+  transition: all 0.15s; font-size: 0.9rem; font-weight: 500;
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+.eg-offcanvas .sidebar-link:hover { color: #fff; background-color: var(--eg-700); }
+.eg-offcanvas .sidebar-link.active {
+  color: #4ade80; background-color: rgba(34,197,94,0.1);
+  border: 1px solid rgba(34,197,94,0.2);
+}
+
+/* ─── Tables ─────────────────────────────────────────────────────────────────── */
+.table { --bs-table-color: #f9fafb; }
+.table > :not(caption) > * > * { padding: 0.75rem 1rem; }
+.table thead th { color: #9ca3af; font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.table td { vertical-align: middle; }
+
+/* ─── Modals ─────────────────────────────────────────────────────────────────── */
+.modal-content {
+  background-color: var(--eg-800);
+  border: 1px solid var(--eg-600);
+  border-radius: 1rem;
+}
+.modal-header {
+  border-bottom-color: var(--eg-600);
+}
+.modal-footer {
+  border-top-color: var(--eg-600);
+}
+.modal-backdrop { backdrop-filter: blur(2px); }
+
+/* ─── Nav tabs ─────────────────────────────────────────────────────────────────── */
+.nav-tabs .nav-link {
+  color: #9ca3af; border-color: transparent; border-radius: 0.5rem 0.5rem 0 0;
+}
+.nav-tabs .nav-link:hover { color: #fff; border-color: transparent; background: rgba(255,255,255,0.04); }
+.nav-tabs .nav-link.active {
+  color: #4ade80; background-color: var(--eg-800);
+  border-color: var(--eg-600) var(--eg-600) var(--eg-800);
+}
+
+/* ─── Misc ─────────────────────────────────────────────────────────────────── */
+.text-brand { color: #4ade80 !important; }
+.text-xs { font-size: 0.72rem !important; }
+.bg-700 { background-color: var(--eg-700); }
+.bg-800 { background-color: var(--eg-800); }
+.bg-900 { background-color: var(--eg-900); }
+.border-700 { border-color: var(--eg-600) !important; }
+.rounded-xl { border-radius: 0.75rem !important; }
+.rounded-2xl { border-radius: 1rem !important; }
+
+/* Google Maps */
+.gm-style { border-radius: inherit; }
+.gm-style-cc, .gmnoprint, .gm-bundled-control { display: none !important; }
+.gm-style a[href*="google.com/maps"] { display: none !important; }
+
+/* Chat bubbles */
+.chat-bubble-me    { background: #22c55e; color: #fff; border-radius: 18px 18px 4px 18px; }
+.chat-bubble-other { background: var(--eg-700); color: #f3f4f6; border-radius: 18px 18px 18px 4px; }
+
+/* Animations */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes pingRing { 75%, 100% { transform: scale(2); opacity: 0; } }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.animate-fade-in { animation: fadeIn 0.3s ease-out; }
+.ping-ring { animation: pingRing 1.5s cubic-bezier(0,0,0.2,1) infinite; }
+.animate-spin { animation: spin 1s linear infinite; }
+
+/* ─── Menu icon badge & status ring ─────────────────────────────────────── */
+@keyframes menu-ring-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50%       { transform: scale(1.12); opacity: 0.4; }
+}
+@keyframes menu-ring-flash {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.1; }
+}
+@keyframes badge-pop {
+  0%   { transform: scale(0); }
+  65%  { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+
+.menu-ring {
+  position: absolute; inset: -5px; border-radius: 10px;
+  border: 2px solid; pointer-events: none;
+}
+.menu-ring-pulse { animation: menu-ring-pulse 1.8s ease-in-out infinite; }
+.menu-ring-flash { animation: menu-ring-flash 0.45s ease-in-out infinite; }
+
+.notif-badge {
+  position: absolute; top: -7px; right: -7px;
+  min-width: 18px; height: 18px; padding: 0 4px;
+  background: #ef4444; color: #fff;
+  border-radius: 999px; font-size: 10px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  animation: badge-pop 0.35s cubic-bezier(0.34,1.56,0.64,1);
+  border: 1.5px solid var(--eg-800); z-index: 2; line-height: 1;
+}
+.sidebar-badge {
+  min-width: 18px; height: 18px; padding: 0 5px;
+  background: #ef4444; color: #fff;
+  border-radius: 999px; font-size: 10px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  line-height: 1; margin-left: auto; flex-shrink: 0;
+}
+.ride-status-strip {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0.5rem 0.9rem; border-radius: 0.75rem;
+  font-size: 0.72rem; font-weight: 600; margin-bottom: 0.5rem;
+}
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  animation: menu-ring-pulse 1.8s ease-in-out infinite;
+}
+
+/* Overflow utilities */
+.overflow-x-hidden { overflow-x: hidden; }
+.overflow-y-auto   { overflow-y: auto; }
+
+/* Height shims — used by MapView callers (Tailwind-style names, no Bootstrap conflict) */
+.h-48 { height: 192px !important; }
+.h-60 { height: 240px !important; }
+.h-64 { height: 256px !important; }
+.h-80 { height: 320px !important; }
+
+/* Input-group corner radius fix — prevents our .form-control border-radius from overriding Bootstrap's group corners */
+.input-group > .form-control,
+.input-group > .form-select,
+.input-group > .input-group-text {
+  border-radius: 0 !important;
+}
+.input-group > .form-control:first-child,
+.input-group > .form-select:first-child,
+.input-group > .input-group-text:first-child {
+  border-top-left-radius: 0.75rem !important;
+  border-bottom-left-radius: 0.75rem !important;
+}
+.input-group > .form-control:last-child,
+.input-group > .form-select:last-child,
+.input-group > .input-group-text:last-child {
+  border-top-right-radius: 0.75rem !important;
+  border-bottom-right-radius: 0.75rem !important;
+}
+
+/* Progress bar */
+.progress { background-color: var(--eg-700); border-radius: 999px; }
+.progress-bar { border-radius: 999px; }
+
+/* Step indicator */
+.step-dot {
+  width: 32px; height: 32px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.8rem; font-weight: 700; flex-shrink: 0;
+  border: 2px solid var(--eg-600); color: #6b7280;
+  background: var(--eg-700);
+  transition: all 0.2s;
+}
+.step-dot.active { border-color: var(--eg-brand); color: #fff; background: var(--eg-brand); }
+.step-dot.done   { border-color: var(--eg-brand); color: var(--eg-brand); background: var(--eg-brand-dim); }
+.step-line { flex: 1; height: 2px; background: var(--eg-600); }
+.step-line.done { background: var(--eg-brand); }

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">EasyRide</string>
+    <string name="title_activity_main">EasyRide</string>
+    <string name="package_name">com.easyride.app</string>
+    <string name="custom_url_scheme">com.easyride.app</string>
+</resources>

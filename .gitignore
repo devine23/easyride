@@ -1,0 +1,49 @@
+# ─── Dependencies ──────────────────────────────────────────────────
+node_modules/
+
+# ─── Secrets / env — NEVER commit real credentials ─────────────────
+.env
+.env.local
+.env.*.local
+client/.env.android
+# Firebase service account JSON (set via FIREBASE_SERVICE_ACCOUNT env var instead)
+**/firebase-service-account*.json
+**/serviceAccount*.json
+
+# ─── Build output ──────────────────────────────────────────────────
+dist/
+build/
+client/dist/
+coverage/
+*.tsbuildinfo
+
+# ─── Logs ──────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+logs/
+pm2-*.log
+
+# ─── OS / editor ───────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# ─── Android (keep source, ignore builds + signing) ────────────────
+client/android/app/build/
+client/android/.gradle/
+client/android/build/
+client/android/local.properties
+client/android/capacitor-cordova-android-plugins/
+*.keystore
+*.jks
+
+# ─── iOS (if added later) ──────────────────────────────────────────
+client/ios/App/build/
+client/ios/App/Pods/
+client/ios/App/App.xcworkspace/xcuserdata/
+
+# ─── Misc ──────────────────────────────────────────────────────────
+.eslintcache
+.cache/

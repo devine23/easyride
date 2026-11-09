@@ -1,0 +1,35 @@
+{
+  "name": "easyride-server",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "nodemon src/index.js",
+    "start": "node src/index.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@sentry/node": "^11.9.0",
+    "africastalking": "^0.8.3",
+    "axios": "^1.20.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^18.0.3",
+    "express": "^4.18.3",
+    "express-rate-limit": "^8.7.1",
+    "firebase-admin": "^14.5.0",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^9.10.2",
+    "multer": "^1.4.5-lts.1",
+    "paynow": "^2.2.2",
+    "pino": "^10.4.0",
+    "pino-pretty": "^13.2.0",
+    "socket.io": "^4.7.4",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "jest": "^30.5.2",
+    "nodemon": "^3.1.0",
+    "supertest": "^7.3.1"
+  }
+}
