@@ -5,6 +5,7 @@ import {
   Trash2, Lock, Unlock, Eye, AlertTriangle, CheckCircle,
   TrendingUp, DollarSign, Navigation, User, Building2, Ban, Info, Zap, Download,
   ClipboardList, Clock, XCircle, ChevronRight, FileCheck, Tag, Plus, Banknote, Loader,
+  Wallet, Sliders, ArrowUpCircle, ArrowDownCircle,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useSocket } from '../../context/SocketContext'
@@ -25,6 +26,7 @@ const NAV = [
   { id: 'promos',         label: 'Promo Codes',     icon: Tag },
   { id: 'pricing',        label: 'Pricing',         icon: Zap },
   { id: 'cashouts',       label: 'Cashouts',        icon: Banknote },
+  { id: 'wallets',        label: 'Driver Wallets',  icon: Wallet },
   { id: 'activity',       label: 'Activity Log',    icon: Activity },
   { id: 'reports',        label: 'Reports',         icon: BarChart2 },
 ]
@@ -78,6 +80,82 @@ export default function AdminDashboard() {
   const [payouts,         setPayouts]         = useState<Payout[]>([])
   const [cashoutRejReason, setCashoutRejReason] = useState('')
   const [cashoutProcessing, setCashoutProcessing] = useState<string | null>(null)
+
+  // Driver wallets (phase 6)
+  interface AdminWalletRow {
+    driverId: string; driverName: string; phone: string; email: string; status: string
+    balance: number; heldBalance: number; total: number; lastTopUpAt: string | null
+  }
+  interface AdminWalletDetail extends AdminWalletRow {
+    transactions: Array<{ id: string; type: string; amount: number; balanceAfter: number; createdAt: string; reference?: string; metadata?: Record<string, unknown> }>
+  }
+  const [wallets,         setWallets]         = useState<AdminWalletRow[]>([])
+  const [walletSearch,    setWalletSearch]    = useState('')
+  const [walletsLoading,  setWalletsLoading]  = useState(false)
+  const [selectedWallet,  setSelectedWallet]  = useState<AdminWalletDetail | null>(null)
+  const [adjustDelta,     setAdjustDelta]     = useState('')
+  const [adjustReason,    setAdjustReason]    = useState('')
+  const [adjustSaving,    setAdjustSaving]    = useState(false)
+  const [adjustError,     setAdjustError]     = useState<string | null>(null)
+
+  // Commission config
+  const [commissionCfg,   setCommissionCfg]   = useState<{ default: number; min: number; max: number; walletMinBalance: number } | null>(null)
+  const [commissionSaving, setCommissionSaving] = useState(false)
+  const [commissionSuccess, setCommissionSuccess] = useState(false)
+
+  async function fetchWallets() {
+    setWalletsLoading(true)
+    try { const r = await api.get<AdminWalletRow[]>('/admin/wallets'); setWallets(r.data) }
+    catch (err) { console.error('Wallet fetch failed:', err) }
+    finally { setWalletsLoading(false) }
+  }
+
+  async function openWalletDetail(driverId: string) {
+    try {
+      const r = await api.get<AdminWalletDetail>(`/admin/wallets/${driverId}`)
+      setSelectedWallet(r.data)
+      setAdjustDelta(''); setAdjustReason(''); setAdjustError(null)
+    } catch (err) { console.error('Wallet detail failed:', err) }
+  }
+
+  async function submitAdjust() {
+    if (!selectedWallet) return
+    const delta = parseFloat(adjustDelta)
+    if (!Number.isFinite(delta) || delta === 0) { setAdjustError('Enter a non-zero amount'); return }
+    if (!adjustReason.trim())                   { setAdjustError('Reason is required'); return }
+    setAdjustSaving(true); setAdjustError(null)
+    try {
+      await api.post(`/admin/wallets/${selectedWallet.driverId}/adjust`, { delta, reason: adjustReason.trim() })
+      // Refresh both the detail and the list row
+      const [detail, list] = await Promise.all([
+        api.get<AdminWalletDetail>(`/admin/wallets/${selectedWallet.driverId}`),
+        api.get<AdminWalletRow[]>('/admin/wallets'),
+      ])
+      setSelectedWallet(detail.data); setWallets(list.data)
+      setAdjustDelta(''); setAdjustReason('')
+    } catch (err: unknown) {
+      setAdjustError(err instanceof Error ? err.message : 'Adjustment failed')
+    } finally { setAdjustSaving(false) }
+  }
+
+  useEffect(() => {
+    if (tab === 'wallets' && wallets.length === 0) fetchWallets()
+    if (tab === 'pricing' && !commissionCfg) {
+      api.get('/admin/commission').then(r => setCommissionCfg(r.data)).catch(() => {})
+    }
+  }, [tab])
+
+  async function saveCommission() {
+    if (!commissionCfg) return
+    setCommissionSaving(true); setCommissionSuccess(false)
+    try {
+      const r = await api.patch('/admin/commission', commissionCfg)
+      setCommissionCfg(r.data)
+      setCommissionSuccess(true)
+      setTimeout(() => setCommissionSuccess(false), 2000)
+    } catch (err) { console.error('Commission save failed:', err) }
+    finally { setCommissionSaving(false) }
+  }
 
   const pendingVerifications = users.filter(u => u.verification?.status === 'pending')
 
@@ -804,6 +882,80 @@ export default function AdminDashboard() {
             </div>
           )}
 
+          {/* ─── WALLETS TAB ─────────────────────────────────────── */}
+          {tab === 'wallets' && (
+            <div className="animate-fade-in" style={{ maxWidth: 900 }}>
+              <div className="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4 pb-3" style={{ borderBottom: '1px solid var(--eg-700)' }}>
+                <div>
+                  <h1 className="fw-bold mb-1 d-flex align-items-center gap-2" style={{ fontSize: '1.75rem', letterSpacing: '-0.01em' }}>
+                    <Wallet size={24} style={{ color: '#60a5fa' }} /> Driver Wallets
+                  </h1>
+                  <p className="text-muted small mb-0">{wallets.length} wallet{wallets.length !== 1 ? 's' : ''} · credit / debit, review ledger, confirm bank deposits</p>
+                </div>
+                <button onClick={fetchWallets} disabled={walletsLoading}
+                        className="btn btn-secondary btn-sm d-flex align-items-center gap-2">
+                  {walletsLoading ? <Loader size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                  Refresh
+                </button>
+              </div>
+
+              <div className="input-group mb-3">
+                <span className="input-group-text"
+                      style={{ background: 'var(--eg-700)', color: '#9ca3af', border: '1px solid var(--eg-600)' }}>
+                  <Search size={14} />
+                </span>
+                <input
+                  type="text"
+                  placeholder="Search by name or phone..."
+                  value={walletSearch}
+                  onChange={e => setWalletSearch(e.target.value)}
+                  className="form-control"
+                />
+              </div>
+
+              {walletsLoading ? (
+                <div className="text-center py-5"><Loader size={24} className="animate-spin text-muted" /></div>
+              ) : wallets.length === 0 ? (
+                <div className="card p-5 text-center" style={{ border: '2px dashed var(--eg-600)' }}>
+                  <Wallet size={40} className="text-muted mx-auto mb-3" />
+                  <p className="text-muted mb-0">No driver wallets yet. They're created on first top-up or ride commission.</p>
+                </div>
+              ) : (
+                <div className="d-flex flex-column gap-2">
+                  {wallets
+                    .filter(w => !walletSearch.trim() || w.driverName.toLowerCase().includes(walletSearch.toLowerCase()) || w.phone.includes(walletSearch))
+                    .map(w => (
+                      <div key={w.driverId}
+                           onClick={() => openWalletDetail(w.driverId)}
+                           className="card p-3 d-flex align-items-center gap-3"
+                           style={{ cursor: 'pointer', borderColor: w.balance < 1 ? 'rgba(239,68,68,0.4)' : 'var(--eg-600)' }}>
+                        <div className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 fw-bold"
+                             style={{ width: 40, height: 40, background: 'rgba(96,165,250,0.15)', color: '#60a5fa' }}>
+                          {w.driverName[0]?.toUpperCase() || 'D'}
+                        </div>
+                        <div className="flex-grow-1 overflow-hidden">
+                          <p className="fw-semibold mb-0 text-truncate">{w.driverName}</p>
+                          <p className="text-xs text-muted mb-0">{w.phone}</p>
+                        </div>
+                        <div className="text-end flex-shrink-0">
+                          <p className="fw-bold mb-0" style={{ fontSize: '1.05rem' }}>${w.balance.toFixed(2)}</p>
+                          {w.heldBalance > 0 && (
+                            <p className="text-xs text-muted mb-0">+${w.heldBalance.toFixed(2)} held</p>
+                          )}
+                        </div>
+                        {w.balance < 1 && (
+                          <span className="badge rounded-pill" style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171' }}>
+                            Low
+                          </span>
+                        )}
+                        <ChevronRight size={16} className="text-muted flex-shrink-0" />
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {tab === 'activity' && (
             <div className="animate-fade-in" style={{ maxWidth: 900 }}>
               <div className="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4 pb-3" style={{ borderBottom: '1px solid var(--eg-700)' }}>
@@ -1165,6 +1317,92 @@ export default function AdminDashboard() {
                   Changes only affect new rides — active rides are unaffected.
                 </p>
               </div>
+
+              {/* Commission & wallet config (phase 6) */}
+              {commissionCfg && (
+                <div className="card p-4 mt-3">
+                  <div className="d-flex align-items-center justify-content-between mb-3">
+                    <div>
+                      <h5 className="fw-bold mb-1 d-flex align-items-center gap-2">
+                        <Sliders size={18} style={{ color: '#c084fc' }} /> Commission & wallet
+                      </h5>
+                      <p className="text-xs text-muted mb-0">Percentage of each ride fare held from the driver wallet.</p>
+                    </div>
+                    <button onClick={saveCommission} disabled={commissionSaving}
+                            className="btn btn-primary btn-sm d-flex align-items-center gap-1">
+                      {commissionSaving ? <Loader size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                      Save
+                    </button>
+                  </div>
+
+                  {/* Default commission slider */}
+                  <div className="mb-3">
+                    <div className="d-flex align-items-center justify-content-between mb-1">
+                      <label className="text-xs text-muted mb-0">Default commission</label>
+                      <span className="fw-bold" style={{ color: '#c084fc' }}>
+                        {(commissionCfg.default * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                    <input type="range" min="0" max="0.30" step="0.005"
+                           value={commissionCfg.default}
+                           onChange={e => setCommissionCfg({ ...commissionCfg, default: parseFloat(e.target.value) })}
+                           className="form-range" />
+                    <div className="d-flex justify-content-between text-xs text-muted">
+                      <span>0%</span><span>15%</span><span>30%</span>
+                    </div>
+                  </div>
+
+                  {/* Min / Max bounds */}
+                  <div className="row g-2 mb-3">
+                    <div className="col-6">
+                      <label className="text-xs text-muted mb-1 d-block">Min (floor)</label>
+                      <div className="input-group input-group-sm">
+                        <input type="number" step="0.005" min="0" max="0.30"
+                               value={commissionCfg.min}
+                               onChange={e => setCommissionCfg({ ...commissionCfg, min: parseFloat(e.target.value) })}
+                               className="form-control" />
+                        <span className="input-group-text" style={{ background: 'var(--eg-700)', color: '#9ca3af' }}>
+                          {(commissionCfg.min * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className="col-6">
+                      <label className="text-xs text-muted mb-1 d-block">Max (ceiling)</label>
+                      <div className="input-group input-group-sm">
+                        <input type="number" step="0.005" min="0" max="0.30"
+                               value={commissionCfg.max}
+                               onChange={e => setCommissionCfg({ ...commissionCfg, max: parseFloat(e.target.value) })}
+                               className="form-control" />
+                        <span className="input-group-text" style={{ background: 'var(--eg-700)', color: '#9ca3af' }}>
+                          {(commissionCfg.max * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-muted mb-1 d-block">Wallet minimum balance to receive bids (USD)</label>
+                    <div className="input-group input-group-sm">
+                      <span className="input-group-text" style={{ background: 'var(--eg-700)', color: '#9ca3af' }}>$</span>
+                      <input type="number" step="0.25" min="0" max="50"
+                             value={commissionCfg.walletMinBalance}
+                             onChange={e => setCommissionCfg({ ...commissionCfg, walletMinBalance: parseFloat(e.target.value) })}
+                             className="form-control" />
+                    </div>
+                    <p className="text-xs text-muted mt-1 mb-0">
+                      Drivers below this balance don't receive bid broadcasts (shown as wallet:locked).
+                    </p>
+                  </div>
+
+                  {commissionSuccess && (
+                    <div className="rounded-xl px-3 py-2 d-flex align-items-start gap-2 mt-3"
+                         style={{ background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.3)' }}>
+                      <CheckCircle size={14} style={{ color: '#4ade80', flexShrink: 0, marginTop: 2 }} />
+                      <p className="text-xs mb-0" style={{ color: '#86efac' }}>Commission config saved.</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -1304,6 +1542,126 @@ export default function AdminDashboard() {
           onFreeze={() => setConfirmAction({ type: 'freeze', userId: selectedUser.id, userName: selectedUser.fullName || selectedUser.name || selectedUser.id })}
           onUnfreeze={() => setConfirmAction({ type: 'unfreeze', userId: selectedUser.id, userName: selectedUser.fullName || selectedUser.name || selectedUser.id })}
           onDelete={() => setConfirmAction({ type: 'delete', userId: selectedUser.id, userName: selectedUser.fullName || selectedUser.name || selectedUser.id })} />
+      )}
+
+      {/* Driver wallet detail drawer */}
+      {selectedWallet && (
+        <div className="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-end"
+             style={{ zIndex: 1055, background: 'rgba(0,0,0,0.6)' }}
+             onClick={() => setSelectedWallet(null)}>
+          <div className="bg-800 h-100 overflow-auto p-4 animate-slide-in"
+               style={{ width: '100%', maxWidth: 520 }}
+               onClick={e => e.stopPropagation()}>
+            <div className="d-flex align-items-center justify-content-between mb-3 pb-3"
+                 style={{ borderBottom: '1px solid var(--eg-700)' }}>
+              <div>
+                <h5 className="fw-bold mb-0">{selectedWallet.driverName}</h5>
+                <p className="text-xs text-muted mb-0">{selectedWallet.phone} · {selectedWallet.status}</p>
+              </div>
+              <button onClick={() => setSelectedWallet(null)}
+                      className="btn p-0 border-0 text-muted" style={{ background: 'transparent' }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Balance summary */}
+            <div className="row g-2 mb-4">
+              <div className="col-4">
+                <div className="card p-2 text-center">
+                  <p className="text-xs text-muted mb-1">Available</p>
+                  <p className="fw-bold mb-0" style={{ color: '#4ade80', fontSize: '1.1rem' }}>
+                    ${selectedWallet.balance.toFixed(2)}
+                  </p>
+                </div>
+              </div>
+              <div className="col-4">
+                <div className="card p-2 text-center">
+                  <p className="text-xs text-muted mb-1">Held</p>
+                  <p className="fw-bold mb-0" style={{ color: '#fbbf24', fontSize: '1.1rem' }}>
+                    ${selectedWallet.heldBalance.toFixed(2)}
+                  </p>
+                </div>
+              </div>
+              <div className="col-4">
+                <div className="card p-2 text-center">
+                  <p className="text-xs text-muted mb-1">Total</p>
+                  <p className="fw-bold mb-0" style={{ color: '#60a5fa', fontSize: '1.1rem' }}>
+                    ${selectedWallet.total.toFixed(2)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Admin adjust form */}
+            <div className="card p-3 mb-4" style={{ borderColor: 'rgba(96,165,250,0.4)' }}>
+              <p className="fw-semibold mb-2 d-flex align-items-center gap-1" style={{ fontSize: '0.95rem' }}>
+                <Sliders size={14} /> Manual adjustment
+              </p>
+              <p className="text-xs text-muted mb-2">Positive credits, negative debits. Use for bank-deposit confirmations, refunds, or corrections.</p>
+              <div className="row g-2 mb-2">
+                <div className="col-5">
+                  <label className="text-xs text-muted mb-1 d-block">Amount ($)</label>
+                  <input type="number" step="0.01" placeholder="e.g. 50 or -10"
+                         value={adjustDelta}
+                         onChange={e => { setAdjustDelta(e.target.value); setAdjustError(null) }}
+                         className="form-control form-control-sm" />
+                </div>
+                <div className="col-7">
+                  <label className="text-xs text-muted mb-1 d-block">Reason (required)</label>
+                  <input type="text" placeholder="e.g. Bank deposit confirmed"
+                         value={adjustReason}
+                         onChange={e => { setAdjustReason(e.target.value); setAdjustError(null) }}
+                         className="form-control form-control-sm" />
+                </div>
+              </div>
+              {adjustError && (
+                <p className="text-xs mb-2" style={{ color: '#fca5a5' }}>{adjustError}</p>
+              )}
+              <button onClick={submitAdjust} disabled={adjustSaving}
+                      className="btn btn-primary btn-sm w-100 fw-semibold d-flex align-items-center justify-content-center gap-1">
+                {adjustSaving ? <Loader size={12} className="animate-spin" /> :
+                  parseFloat(adjustDelta) >= 0 ? <ArrowUpCircle size={12} /> : <ArrowDownCircle size={12} />}
+                Apply {parseFloat(adjustDelta || '0') >= 0 ? 'credit' : 'debit'}
+              </button>
+            </div>
+
+            {/* Ledger */}
+            <p className="fw-semibold mb-2 d-flex align-items-center gap-1" style={{ fontSize: '0.95rem' }}>
+              <FileText size={14} /> Recent transactions
+            </p>
+            {selectedWallet.transactions.length === 0 ? (
+              <p className="text-muted small">No transactions yet.</p>
+            ) : (
+              <div className="d-flex flex-column gap-1">
+                {selectedWallet.transactions.map(t => (
+                  <div key={t.id} className="card p-2 d-flex align-items-center gap-2">
+                    <div className="rounded-xl d-flex align-items-center justify-content-center flex-shrink-0"
+                         style={{
+                           width: 28, height: 28,
+                           background: t.amount >= 0 ? 'rgba(74,222,128,0.15)' : 'rgba(239,68,68,0.15)',
+                         }}>
+                      {t.amount >= 0
+                        ? <ArrowUpCircle size={14} style={{ color: '#4ade80' }} />
+                        : <ArrowDownCircle size={14} style={{ color: '#f87171' }} />}
+                    </div>
+                    <div className="flex-grow-1 overflow-hidden">
+                      <p className="mb-0 text-xs fw-semibold">{t.type}</p>
+                      <p className="mb-0 text-xs text-muted text-truncate">
+                        {new Date(t.createdAt).toLocaleString()} · {t.reference || '—'}
+                      </p>
+                    </div>
+                    <div className="text-end flex-shrink-0">
+                      <p className="mb-0 fw-semibold small" style={{ color: t.amount >= 0 ? '#4ade80' : '#f87171' }}>
+                        {t.amount >= 0 ? '+' : ''}${t.amount.toFixed(2)}
+                      </p>
+                      <p className="mb-0 text-xs text-muted">bal: ${t.balanceAfter.toFixed(2)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Verification review modal */}

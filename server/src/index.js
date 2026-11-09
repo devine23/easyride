@@ -20,6 +20,8 @@ const OTP       = require('./models/OTP')
 const AppConfig = require('./models/AppConfig')
 const Payout    = require('./models/Payout')
 const LostItem  = require('./models/LostItem')
+const DriverWallet      = require('./models/DriverWallet')
+const WalletTransaction = require('./models/WalletTransaction')
 
 const { sendPush }        = require('./utils/push')
 const { sendOtp, sendSms } = require('./utils/sms')
@@ -1208,6 +1210,141 @@ app.patch('/api/admin/fuel-price', adminMiddleware, async (req, res) => {
     ].filter(Boolean).join(', ')
     logActivity('system', 'info', `Fuel prices updated — ${changes}`, { userName: 'Admin' })
     res.json(resp)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// ─── Admin wallet management ──────────────────────────────────────────────
+// List all driver wallets with user info + last txn timestamp. For the admin
+// Wallets tab — searchable, sortable in the UI.
+app.get('/api/admin/wallets', adminMiddleware, async (req, res) => {
+  try {
+    const wallets = await DriverWallet.find().lean()
+    const driverIds = wallets.map(w => w.driverId)
+    const users = await User.find({ id: { $in: driverIds } }, { id: 1, fullName: 1, name: 1, phone: 1, email: 1, accountStatus: 1 }).lean()
+    const byId = new Map(users.map(u => [u.id, u]))
+
+    const out = wallets.map(w => {
+      const u = byId.get(w.driverId) || {}
+      return {
+        driverId:    w.driverId,
+        driverName:  u.fullName || u.name || 'Unknown',
+        phone:       u.phone || '',
+        email:       u.email || '',
+        status:      u.accountStatus || 'unknown',
+        balance:     w.balance,
+        heldBalance: w.heldBalance,
+        total:       w.balance + w.heldBalance,
+        lastTopUpAt: w.lastTopUpAt || null,
+      }
+    }).sort((a, b) => b.balance - a.balance)
+
+    res.json(out)
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// Single driver wallet with recent transactions
+app.get('/api/admin/wallets/:driverId', adminMiddleware, async (req, res) => {
+  try {
+    const { driverId } = req.params
+    const [balance, recent, user] = await Promise.all([
+      walletService.getBalance(driverId),
+      walletService.listRecentTxns(driverId, 50),
+      User.findOne({ id: driverId }, { id: 1, fullName: 1, name: 1, phone: 1, email: 1, accountStatus: 1 }).lean(),
+    ])
+    if (!user) return res.status(404).json({ error: 'DRIVER_NOT_FOUND' })
+    res.json({
+      driverId,
+      driverName: user.fullName || user.name || 'Unknown',
+      phone: user.phone, email: user.email, status: user.accountStatus,
+      ...balance,
+      transactions: recent,
+    })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// Admin manual credit/debit. Positive delta credits, negative debits.
+// Reason is required so the ledger is auditable (bank-deposit confirmations,
+// refunds for fraud, corrections, etc.).
+app.post('/api/admin/wallets/:driverId/adjust', adminMiddleware, async (req, res) => {
+  try {
+    const { driverId } = req.params
+    const delta  = parseFloat(req.body.delta)
+    const reason = String(req.body.reason || '').trim()
+
+    if (!Number.isFinite(delta) || delta === 0)
+      return res.status(400).json({ error: 'delta must be a non-zero number' })
+    if (!reason)
+      return res.status(400).json({ error: 'reason is required' })
+    if (Math.abs(delta) > 1000)
+      return res.status(400).json({ error: 'Single adjustment limited to $1000' })
+
+    const user = await User.findOne({ id: driverId })
+    if (!user) return res.status(404).json({ error: 'DRIVER_NOT_FOUND' })
+
+    await walletService.adminAdjust(driverId, delta, {
+      reference: `ADMIN-${req.user.id}-${Date.now()}`,
+      metadata:  { adminId: req.user.id, adminName: req.user.fullName || req.user.name, reason },
+    })
+
+    const fresh = await walletService.getBalance(driverId)
+    logActivity('account', 'warning',
+      `Wallet adjusted ${delta >= 0 ? '+' : ''}$${delta.toFixed(2)} for ${user.fullName || user.name} — ${reason}`,
+      { userId: driverId, userName: user.fullName || user.name })
+    res.json({ ...fresh, delta, reason })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// Commission config read/write. Pct values are 0..1 (e.g. 0.08 = 8%).
+app.get('/api/admin/commission', adminMiddleware, async (req, res) => {
+  try {
+    const cfg = (await AppConfig.findOne()) || {}
+    res.json({
+      default: cfg.commissionPctDefault ?? 0.08,
+      min:     cfg.commissionPctMin     ?? 0.06,
+      max:     cfg.commissionPctMax     ?? 0.12,
+      walletMinBalance: cfg.walletMinBalanceUsd ?? 1.00,
+    })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.patch('/api/admin/commission', adminMiddleware, async (req, res) => {
+  try {
+    const b = req.body || {}
+    const update = {}
+    const bounded = (v, lo, hi) => Number.isFinite(v) && v >= lo && v <= hi
+    if (b.default != null) {
+      const n = parseFloat(b.default)
+      if (!bounded(n, 0, 0.3)) return res.status(400).json({ error: 'default must be between 0 and 0.30' })
+      update.commissionPctDefault = n
+    }
+    if (b.min != null) {
+      const n = parseFloat(b.min)
+      if (!bounded(n, 0, 0.3)) return res.status(400).json({ error: 'min must be between 0 and 0.30' })
+      update.commissionPctMin = n
+    }
+    if (b.max != null) {
+      const n = parseFloat(b.max)
+      if (!bounded(n, 0, 0.3)) return res.status(400).json({ error: 'max must be between 0 and 0.30' })
+      update.commissionPctMax = n
+    }
+    if (b.walletMinBalance != null) {
+      const n = parseFloat(b.walletMinBalance)
+      if (!bounded(n, 0, 50)) return res.status(400).json({ error: 'walletMinBalance must be between 0 and 50' })
+      update.walletMinBalanceUsd = n
+    }
+    if (Object.keys(update).length === 0)
+      return res.status(400).json({ error: 'No valid fields to update' })
+
+    const cfg = await AppConfig.findOneAndUpdate({}, update, { new: true, upsert: true })
+    logActivity('system', 'info',
+      `Commission config updated — ${Object.entries(update).map(([k, v]) => `${k}=${v}`).join(', ')}`,
+      { userName: 'Admin' })
+    res.json({
+      default: cfg.commissionPctDefault ?? 0.08,
+      min:     cfg.commissionPctMin     ?? 0.06,
+      max:     cfg.commissionPctMax     ?? 0.12,
+      walletMinBalance: cfg.walletMinBalanceUsd ?? 1.00,
+    })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
