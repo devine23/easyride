@@ -8,7 +8,7 @@ on:
 
 jobs:
   server-test:
-    name: Server — Jest (72 tests)
+    name: Server — Jest
     runs-on: ubuntu-latest
     defaults:
       run:
