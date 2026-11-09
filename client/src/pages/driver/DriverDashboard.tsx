@@ -15,6 +15,7 @@ import MapView, { RouteInfo } from '../../components/MapView'
 import ChatPanel from '../../components/ChatPanel'
 import CallModal from '../../components/CallModal'
 import IncomingBidCard from '../../components/IncomingBidCard'
+import WalletTopUpModal from '../../components/WalletTopUpModal'
 import { useAuth } from '../../context/AuthContext'
 import { useSocket } from '../../context/SocketContext'
 import { useGeolocation } from '../../hooks/useGeolocation'
@@ -84,6 +85,7 @@ export default function DriverDashboard() {
   const [incomingBid,  setIncomingBid]  = useState<Bid | null>(null)
   const [wallet,       setWallet]       = useState<{ balance: number; heldBalance: number; total: number } | null>(null)
   const [walletLocked, setWalletLocked] = useState<{ required: number; balance: number } | null>(null)
+  const [showTopUp,    setShowTopUp]    = useState(false)
   const [history, setHistory]         = useState<Ride[]>([])
   const [showChat, setShowChat]       = useState(false)
   const [callState, setCallState]     = useState<{ open: boolean; type: 'audio' | 'video' }>({ open: false, type: 'audio' })
@@ -436,10 +438,14 @@ export default function DriverDashboard() {
                 </div>
                 <div className="flex-grow-1">
                   <p className="fw-semibold mb-1" style={{ color: '#fca5a5' }}>Wallet balance too low</p>
-                  <p className="text-xs text-muted mb-0">
+                  <p className="text-xs text-muted mb-2">
                     You need ${walletLocked.required.toFixed(2)} in your wallet to receive this bid
-                    (current: ${walletLocked.balance.toFixed(2)}). Top up to keep receiving offers.
+                    (current: ${walletLocked.balance.toFixed(2)}).
                   </p>
+                  <button onClick={() => setShowTopUp(true)}
+                          className="btn btn-primary btn-sm fw-semibold d-inline-flex align-items-center gap-1">
+                    <Wallet size={14} /> Top up now
+                  </button>
                 </div>
                 <button onClick={() => setWalletLocked(null)}
                         className="btn btn-link text-muted p-0 flex-shrink-0" aria-label="Dismiss">
@@ -448,7 +454,7 @@ export default function DriverDashboard() {
               </div>
             )}
 
-            {/* Wallet tile — balance + held, with top-up CTA when low */}
+            {/* Wallet tile — balance + held, with top-up CTA */}
             {wallet && (
               <div className="card p-3 mb-3 d-flex align-items-center gap-3"
                    style={{ borderColor: wallet.balance < 1 ? 'rgba(239,68,68,0.4)' : 'var(--eg-600)' }}>
@@ -468,10 +474,14 @@ export default function DriverDashboard() {
                   </p>
                 </div>
                 {wallet.balance < 1 && (
-                  <span className="badge rounded-pill" style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171' }}>
+                  <span className="badge rounded-pill me-2" style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171' }}>
                     Low
                   </span>
                 )}
+                <button onClick={() => setShowTopUp(true)}
+                        className="btn btn-primary btn-sm fw-semibold flex-shrink-0">
+                  Top up
+                </button>
               </div>
             )}
 
@@ -1331,6 +1341,18 @@ export default function DriverDashboard() {
             navigateTo('active')
           }}
           onDismiss={() => setIncomingBid(null)}
+        />
+      )}
+
+      {/* ── Wallet top-up modal ────────────────────────────────────────── */}
+      {showTopUp && (
+        <WalletTopUpModal
+          defaultPhone={user?.phone}
+          onClose={() => setShowTopUp(false)}
+          onFunded={fresh => {
+            setWallet(fresh)
+            setWalletLocked(null)
+          }}
         />
       )}
 

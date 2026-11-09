@@ -5,6 +5,7 @@ const { auth } = require('../middleware/auth')
 const { initiateMobilePayment, pollStatus } = require('../utils/payment')
 const { sendPush } = require('../utils/push')
 const { verifyPaynowHash } = require('../utils/paynowHash')
+const bidsModule = require('./bids')  // for pendingTopUps + walletService re-exports
 
 // Paynow sends callbacks as application/x-www-form-urlencoded POST
 router.use(require('express').urlencoded({ extended: true }))
@@ -64,7 +65,33 @@ async function handlePaynowCallback(req, res) {
     const paidStatuses = new Set(['Paid', 'Awaiting Delivery', 'Delivered'])
     if (!paidStatuses.has(status)) return
 
-    const rideId = String(reference || '').replace(/^Ride-/, '')
+    const rawRef = String(reference || '')
+
+    // Wallet top-up: reference looks like `Wallet-<topUpId>`
+    if (rawRef.startsWith('Wallet-')) {
+      const topUpId = rawRef.replace(/^Wallet-/, '')
+      const entry = bidsModule.pendingTopUps?.get(topUpId)
+      if (!entry) {
+        console.log('[Paynow] Unknown wallet top-up:', topUpId)
+        return
+      }
+      if (entry.status === 'credited') {
+        console.log('[Paynow] Duplicate wallet top-up ignored:', topUpId)
+        return
+      }
+      entry.status = 'credited'
+      await bidsModule.walletService.credit(entry.driverId, entry.amount, {
+        type: 'TOPUP',
+        reference: `TopUp-${topUpId}`,
+        method: entry.method,
+      })
+      const driver = await User.findOne({ id: entry.driverId })
+      if (driver?.fcmToken) sendPush(driver.fcmToken, 'Wallet credited', `$${entry.amount.toFixed(2)} added to your EasyRide wallet`)
+      return
+    }
+
+    // Ride payment: reference looks like `Ride-<rideId>`
+    const rideId = rawRef.replace(/^Ride-/, '')
     if (!rideId) return
 
     // Idempotency: only transition from a non-paid state
