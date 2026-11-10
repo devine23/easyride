@@ -1,14 +1,16 @@
 importScripts('https://www.gstatic.com/firebasejs/10.11.0/firebase-app-compat.js')
 importScripts('https://www.gstatic.com/firebasejs/10.11.0/firebase-messaging-compat.js')
 
-// Populated at build time via VITE env or set manually here
+// Firebase web config. Public identifiers (safe to commit) — security is
+// enforced by Firebase project rules, not by hiding these values.
+// Service workers can't read import.meta.env, so these must be hardcoded.
 const firebaseConfig = {
-  apiKey:            self.VITE_FIREBASE_API_KEY             || '',
-  authDomain:        self.VITE_FIREBASE_AUTH_DOMAIN         || '',
-  projectId:         self.VITE_FIREBASE_PROJECT_ID          || '',
-  storageBucket:     self.VITE_FIREBASE_STORAGE_BUCKET      || '',
-  messagingSenderId: self.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
-  appId:             self.VITE_FIREBASE_APP_ID              || '',
+  apiKey:            'AIzaSyD8ThJ_zSrYgvHY0Dr1l_I1Z3ooTneR-WE',
+  authDomain:        'easyride-61fce.firebaseapp.com',
+  projectId:         'easyride-61fce',
+  storageBucket:     'easyride-61fce.firebasestorage.app',
+  messagingSenderId: '190475796426',
+  appId:             '1:190475796426:web:5b3b03094cd62493a21933',
 }
 
 if (firebaseConfig.projectId) {
