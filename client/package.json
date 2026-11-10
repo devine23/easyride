@@ -22,6 +22,7 @@
     "@capacitor/splash-screen": "^8.0.2",
     "@capacitor/status-bar": "^8.0.3",
     "@react-google-maps/api": "^2.20.8",
+    "@sentry/react": "^11.11.0",
     "axios": "^1.6.7",
     "bootstrap": "^5.3.8",
     "firebase": "^12.19.0",
