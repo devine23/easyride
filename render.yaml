@@ -1,0 +1,98 @@
+# Render blueprint — defines both services (backend API + static frontend).
+# Deploy via: https://dashboard.render.com → "New +" → "Blueprint" → select repo.
+#
+# Secrets (MONGODB_URI, JWT_SECRET, FIREBASE_SERVICE_ACCOUNT, SENTRY_DSN,
+# PAYNOW_*, AT_API_KEY) are marked `sync: false` — Render will prompt for
+# each one during the first deployment. Fill them from your local .env.
+
+services:
+  # ─── Backend API (Express + Socket.io) ────────────────────────────────
+  - type: web
+    name: easyride-api
+    runtime: node
+    region: frankfurt         # closest to Zimbabwe among Render's regions
+    plan: free                # upgrade to "starter" ($7/mo) to kill the 15-min sleep
+    rootDir: server
+    buildCommand: npm install --no-audit --no-fund
+    startCommand: node src/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      # PORT is injected automatically by Render — do NOT set it here.
+      - key: LOG_LEVEL
+        value: info
+      - key: NO_SEED
+        value: "1"              # Atlas is already seeded; don't re-seed in prod
+      - key: SENTRY_TRACES_SAMPLE_RATE
+        value: "0.1"
+      - key: MONGODB_URI
+        sync: false             # paste Atlas connection string during setup
+      - key: JWT_SECRET
+        sync: false             # paste or generate a 64-char random string
+      - key: ALLOWED_ORIGIN
+        sync: false             # fill in with the frontend URL AFTER first deploy
+      - key: CLIENT_URL
+        sync: false             # same as ALLOWED_ORIGIN
+      - key: BASE_URL
+        sync: false             # https://easyride-api.onrender.com (post-deploy)
+      - key: FIREBASE_SERVICE_ACCOUNT
+        sync: false             # paste the JSON (single line) from server/.env
+      - key: SENTRY_DSN
+        sync: false             # server-side Sentry DSN
+      - key: PAYNOW_INTEGRATION_ID
+        sync: false
+      - key: PAYNOW_INTEGRATION_KEY
+        sync: false
+      - key: AT_USERNAME
+        value: sandbox
+      - key: AT_API_KEY
+        sync: false
+      - key: AT_WA_NUMBER
+        sync: false
+      - key: AT_WA_PRODUCT
+        value: EasyRide
+      - key: TURN_URLS
+        value: turn:openrelay.metered.ca:80,turn:openrelay.metered.ca:443,turns:openrelay.metered.ca:443
+      - key: TURN_USERNAME
+        value: openrelayproject
+      - key: TURN_CREDENTIAL
+        value: openrelayproject
+
+  # ─── Frontend (built React static) ────────────────────────────────────
+  - type: web
+    name: easyride-web
+    runtime: static
+    rootDir: client
+    buildCommand: npm install --no-audit --no-fund && npm run build
+    staticPublishPath: ./dist
+    # SPA fallback — React Router handles all routes client-side
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: VITE_SERVER_URL
+        sync: false             # https://easyride-api.onrender.com (post-deploy)
+      - key: VITE_GOOGLE_MAPS_KEY
+        sync: false
+      - key: VITE_SENTRY_DSN
+        sync: false
+      - key: VITE_FIREBASE_API_KEY
+        value: AIzaSyD8ThJ_zSrYgvHY0Dr1l_I1Z3ooTneR-WE
+      - key: VITE_FIREBASE_AUTH_DOMAIN
+        value: easyride-61fce.firebaseapp.com
+      - key: VITE_FIREBASE_PROJECT_ID
+        value: easyride-61fce
+      - key: VITE_FIREBASE_STORAGE_BUCKET
+        value: easyride-61fce.firebasestorage.app
+      - key: VITE_FIREBASE_MESSAGING_SENDER_ID
+        value: "190475796426"
+      - key: VITE_FIREBASE_APP_ID
+        value: "1:190475796426:web:5b3b03094cd62493a21933"
+      - key: VITE_FIREBASE_VAPID_KEY
+        value: BEhmmtAS2wjdCyIt5wlwSmyYC-fxNToqs-ppXxMbhDo3U7WcHHtz5ixGltitutxl6gp9cedR5FtSyz_uztuI_DU
