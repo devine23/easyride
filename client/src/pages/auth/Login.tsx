@@ -54,11 +54,15 @@ export default function Login() {
   }
 
   // ── Forgot: send OTP ───────────────────────────────────────────────────────
+  const [devCode, setDevCode] = useState<string | null>(null)
   async function sendOtp(navigateToOtpScreen: boolean) {
-    setFpLoading(true); setFpError('')
+    setFpLoading(true); setFpError(''); setDevCode(null)
     try {
-      await api.post('/auth/otp/send', { phone: fpPhone })
+      const res = await api.post('/auth/otp/send', { phone: fpPhone })
       setFpDigits(['', '', '', '', '', ''])
+      // Server returns `devCode` when SMS isn't configured — show it so the
+      // user can test the flow without a real Africa's Talking credential.
+      if (res.data?.devCode) setDevCode(res.data.devCode)
       if (navigateToOtpScreen) setScreen('forgot-otp')
       setTimeout(() => otpRefs[0].current?.focus(), 100)
     } catch (err: unknown) {
@@ -369,6 +373,15 @@ export default function Login() {
               <p className="text-sm text-center mb-2">
                 Code sent to <span className="fw-semibold text-white">{fpPhone}</span>
               </p>
+              {devCode && (
+                <div className="rounded-xl px-3 py-2 text-center"
+                     style={{ background: 'rgba(96,165,250,0.1)', border: '1px solid rgba(96,165,250,0.3)' }}>
+                  <p className="text-xs mb-1" style={{ color: '#93c5fd' }}>SMS not configured — use this test code:</p>
+                  <p className="fw-bold mb-0" style={{ color: '#60a5fa', fontSize: '1.4rem', letterSpacing: '0.3em' }}>
+                    {devCode}
+                  </p>
+                </div>
+              )}
               <div className="d-flex justify-content-center gap-2">
                 {fpDigits.map((d, i) => (
                   <input

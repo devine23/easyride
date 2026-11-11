@@ -358,15 +358,22 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
   } catch (err) { res.status(500).json({ message: err.message }) }
 })
 
+// Zimbabwe phone normalization — accept +263..., 263..., 077..., 77... forms
+// and return all equivalents so downstream code can do a single lookup.
+function phoneCandidates(raw) {
+  const trimmed = String(raw || '').trim()
+  const candidates = [trimmed, trimmed.toLowerCase()]
+  const digits = trimmed.replace(/[^\d]/g, '')
+  if (digits.length === 9 && digits.startsWith('7')) candidates.push('+263' + digits)
+  if (digits.length === 10 && digits.startsWith('07')) candidates.push('+263' + digits.slice(1))
+  if (digits.length === 12 && digits.startsWith('263')) candidates.push('+' + digits)
+  return [...new Set(candidates.filter(Boolean))]
+}
+
 app.post('/api/auth/login', authLimiter, async (req, res) => {
   try {
     const { phone, password } = req.body
-    const raw = String(phone || '').trim()
-    const candidates = [raw, raw.toLowerCase()]
-    const digits = raw.replace(/[^\d]/g, '')
-    if (digits.length === 9 && digits.startsWith('7')) candidates.push('+263' + digits)
-    if (digits.length === 10 && digits.startsWith('07')) candidates.push('+263' + digits.slice(1))
-    if (digits.length === 12 && digits.startsWith('263')) candidates.push('+' + digits)
+    const candidates = phoneCandidates(phone)
     const user = await User.findOne({ $or: [{ phone: { $in: candidates } }, { email: { $in: candidates } }] })
     if (!user || !await bcrypt.compare(password, user.passwordHash)) {
       logActivity('login', 'warning', `Failed login attempt for ${phone || 'unknown'}`)
@@ -446,10 +453,15 @@ app.post('/api/auth/otp/send', otpLimiter, async (req, res) => {
   try {
     const { phone } = req.body
     if (!phone) return res.status(400).json({ message: 'Phone required' })
+    const candidates = phoneCandidates(phone)
+    const user = await User.findOne({ phone: { $in: candidates } })
+    if (!user) return res.status(404).json({ message: 'No account found with this number' })
+
     const code      = String(Math.floor(100000 + Math.random() * 900000))
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000)
-    await OTP.create({ phone, code, expiresAt })
-    await sendOtp(phone, code)
+    // Always store against the canonical (user's own) phone so verify can match
+    await OTP.create({ phone: user.phone, code, expiresAt })
+    await sendOtp(user.phone, code)
     const devMode = !process.env.AT_API_KEY
     res.json({ ok: true, ...(devMode && { devCode: code }) })
   } catch (err) { res.status(500).json({ message: err.message }) }
@@ -458,12 +470,13 @@ app.post('/api/auth/otp/send', otpLimiter, async (req, res) => {
 app.post('/api/auth/otp/verify', otpLimiter, async (req, res) => {
   try {
     const { phone, code } = req.body
-    const otp = await OTP.findOne({ phone, code, used: false, expiresAt: { $gt: new Date() } })
+    const candidates = phoneCandidates(phone)
+    const user = await User.findOne({ phone: { $in: candidates } })
+    if (!user) return res.status(404).json({ message: 'User not found' })
+    const otp = await OTP.findOne({ phone: user.phone, code, used: false, expiresAt: { $gt: new Date() } })
     if (!otp) return res.status(400).json({ message: 'Invalid or expired OTP' })
     otp.used = true
     await otp.save()
-    const user = await User.findOne({ phone })
-    if (!user) return res.status(404).json({ message: 'User not found' })
     res.json({ token: makeToken(user), user: safeUser(user) })
   } catch (err) { res.status(500).json({ message: err.message }) }
 })
@@ -473,15 +486,16 @@ app.post('/api/auth/reset-password', authLimiter, async (req, res) => {
     const { phone, code, newPassword } = req.body
     if (!phone || !code || !newPassword) return res.status(400).json({ message: 'Phone, code and new password are required' })
     if (newPassword.length < 6) return res.status(400).json({ message: 'Password must be at least 6 characters' })
-    const otp = await OTP.findOne({ phone, code, used: false, expiresAt: { $gt: new Date() } })
-    if (!otp) return res.status(400).json({ message: 'Invalid or expired OTP. Please request a new one.' })
-    const user = await User.findOne({ phone })
+    const candidates = phoneCandidates(phone)
+    const user = await User.findOne({ phone: { $in: candidates } })
     if (!user) return res.status(404).json({ message: 'No account found with this number' })
+    const otp = await OTP.findOne({ phone: user.phone, code, used: false, expiresAt: { $gt: new Date() } })
+    if (!otp) return res.status(400).json({ message: 'Invalid or expired OTP. Please request a new one.' })
     otp.used = true
     await otp.save()
     user.passwordHash = await bcrypt.hash(newPassword, 12)
     await user.save()
-    logActivity('account', 'info', `Password reset via OTP — ${phone}`, { userId: user.id })
+    logActivity('account', 'info', `Password reset via OTP — ${user.phone}`, { userId: user.id })
     res.json({ ok: true })
   } catch (err) { res.status(500).json({ message: err.message }) }
 })

@@ -373,42 +373,68 @@ export default function ClientDashboard() {
     } catch { setHistory([]) }
   }
 
-  // Harare metropolitan viewbox (left,top,right,bottom). We bias search here
-  // because Nominatim otherwise matches ambiguous names like "NSSA" to a
-  // random Zimbabwean town. Pattern: longitude_min,latitude_max,longitude_max,latitude_min.
-  const HARARE_VIEWBOX = '30.80,-17.60,31.30,-18.00'
+  // Harare bias box for Google Maps (southwest corner | northeast corner).
+  // Used to prefer Harare metro area results over ambiguous Zimbabwean matches
+  // (e.g. "NSSA" previously resolved to a Chinhoyi suburb).
+  const GOOGLE_MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY
+  const HARARE_BOUNDS   = '-18.00,30.80|-17.60,31.30'
 
   async function geocode(address: string): Promise<Coordinates | null> {
+    // Primary: Google Maps Geocoding. More accurate in Zimbabwe + handles
+    // local landmark names (NSSA, UoZ, Eastgate) that Nominatim fumbles.
+    if (GOOGLE_MAPS_KEY) {
+      try {
+        const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&components=country:ZW&bounds=${HARARE_BOUNDS}&key=${GOOGLE_MAPS_KEY}`
+        const res = await fetch(url)
+        const data = await res.json()
+        if (data.status === 'OK' && data.results?.[0]) {
+          const loc = data.results[0].geometry.location
+          return { lat: loc.lat, lng: loc.lng }
+        }
+      } catch { /* fall through to Nominatim */ }
+    }
+    // Fallback: Nominatim, bounded to Harare viewbox
     try {
-      // Pass 1: bounded to Harare — gets us the correct result in 95% of cases
-      const bounded = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&countrycodes=zw&viewbox=${HARARE_VIEWBOX}&bounded=1&limit=1`
-      let res = await fetch(bounded, { headers: { 'Accept-Language': 'en' } })
-      let data = await res.json()
-      if (data[0]) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) }
-
-      // Pass 2: biased (not bounded) — fall back to Zim-wide if nothing in Harare
-      const biased = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&countrycodes=zw&viewbox=${HARARE_VIEWBOX}&limit=1`
-      res = await fetch(biased, { headers: { 'Accept-Language': 'en' } })
-      data = await res.json()
+      const viewbox = '30.80,-17.60,31.30,-18.00'
+      const bounded = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&countrycodes=zw&viewbox=${viewbox}&bounded=1&limit=1`
+      const res = await fetch(bounded, { headers: { 'Accept-Language': 'en' } })
+      const data = await res.json()
       if (data[0]) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) }
     } catch {}
     return null
   }
 
   async function reverseGeocode(lat: number, lng: number): Promise<string> {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
-      { headers: { 'Accept-Language': 'en' } }
-    )
-    const data = await res.json()
-    if (!data.address) return `${lat.toFixed(5)}, ${lng.toFixed(5)}`
-    const a = data.address
-    const parts = [
-      a.road || a.pedestrian || a.footway || a.path,
-      a.suburb || a.neighbourhood || a.quarter || a.residential,
-      a.city || a.town || a.village || a.county,
-    ].filter(Boolean)
-    return parts.length ? parts.join(', ') : data.display_name
+    // Primary: Google Maps — returns `formatted_address` already assembled
+    if (GOOGLE_MAPS_KEY) {
+      try {
+        const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_MAPS_KEY}`
+        const res = await fetch(url)
+        const data = await res.json()
+        if (data.status === 'OK' && data.results?.[0]?.formatted_address) {
+          return data.results[0].formatted_address
+        }
+      } catch { /* fall through */ }
+    }
+    // Fallback: Nominatim
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+        { headers: { 'Accept-Language': 'en' } }
+      )
+      const data = await res.json()
+      if (data.address) {
+        const a = data.address
+        const parts = [
+          a.road || a.pedestrian || a.footway || a.path,
+          a.suburb || a.neighbourhood || a.quarter || a.residential,
+          a.city || a.town || a.village || a.county,
+        ].filter(Boolean)
+        if (parts.length) return parts.join(', ')
+        return data.display_name
+      }
+    } catch {}
+    return `${lat.toFixed(5)}, ${lng.toFixed(5)}`
   }
 
   async function fillPickupFromGPS() {

@@ -95,6 +95,20 @@ export default function CorporateDashboard() {
   useEffect(() => { window.scrollTo({ top: 0, behavior: 'auto' }) }, [tab])
 
   async function geocodeAddress(address: string) {
+    const key = import.meta.env.VITE_GOOGLE_MAPS_KEY
+    // Primary: Google Maps — more accurate for Zim landmarks
+    if (key) {
+      try {
+        const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&components=country:ZW&bounds=-18.00,30.80|-17.60,31.30&key=${key}`
+        const res = await fetch(url)
+        const data = await res.json()
+        if (data.status === 'OK' && data.results?.[0]) {
+          const loc = data.results[0].geometry.location
+          return { lat: loc.lat, lng: loc.lng }
+        }
+      } catch { /* fall through */ }
+    }
+    // Fallback: Nominatim
     try {
       const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&countrycodes=zw&limit=1`
       const res = await fetch(url, { headers: { 'Accept-Language': 'en' } })
