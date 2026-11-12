@@ -1,11 +1,12 @@
 const mongoose = require('mongoose')
 
 const otpSchema = new mongoose.Schema({
-  phone:     { type: String, required: true },
-  code:      { type: String, required: true },
-  expiresAt: { type: Date, required: true },
-  used:      { type: Boolean, default: false },
-  createdAt: { type: Date, default: Date.now },
+  phone:      { type: String, required: true },
+  code:       { type: String, required: true },
+  expiresAt:  { type: Date, required: true },
+  used:       { type: Boolean, default: false },
+  verifiedAt: { type: Date, default: null },   // set by /otp/verify for register flow
+  createdAt:  { type: Date, default: Date.now },
 }, { versionKey: false })
 
 // Auto-delete expired OTPs

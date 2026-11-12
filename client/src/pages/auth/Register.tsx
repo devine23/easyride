@@ -107,7 +107,7 @@ function OTPModal({ phone, onVerified, onClose }: {
   async function sendOTP() {
     setSending(true); setError('')
     try {
-      const res = await api.post('/auth/otp/send', { phone })
+      const res = await api.post('/auth/otp/send', { phone, purpose: 'register' })
       setSent(true)
       if (res.data?.devCode) {
         const c = String(res.data.devCode).split('')
@@ -123,7 +123,7 @@ function OTPModal({ phone, onVerified, onClose }: {
   async function verify() {
     setError('')
     try {
-      await api.post('/auth/otp/verify', { phone, code: digits.join('') })
+      await api.post('/auth/otp/verify', { phone, code: digits.join(''), purpose: 'register' })
       onVerified()
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message

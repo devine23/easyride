@@ -289,7 +289,21 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
     } = req.body
 
     if (!phone) return res.status(400).json({ message: 'Phone number is required' })
-    if (await User.findOne({ phone })) return res.status(400).json({ message: 'This phone number is already registered' })
+
+    // Phone verification — require an OTP that was already verified via /otp/verify.
+    // We lookup by any phone-equivalent form so client formatting doesn't matter.
+    const phoneForms = phoneCandidates(phone)
+    const verifiedOtp = await OTP.findOne({
+      phone: { $in: phoneForms },
+      verifiedAt: { $ne: null },
+      used: false,
+      expiresAt: { $gt: new Date() },
+    }).sort({ verifiedAt: -1 })
+    if (!verifiedOtp) {
+      return res.status(400).json({ message: 'Phone not verified. Please request and verify an OTP first.' })
+    }
+
+    if (await User.findOne({ phone: { $in: phoneForms } })) return res.status(400).json({ message: 'This phone number is already registered' })
     if (email && await User.findOne({ email })) return res.status(400).json({ message: 'Email already in use' })
 
     if (!password && !pin) return res.status(400).json({ message: 'Password or PIN is required' })
@@ -332,7 +346,7 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
       accountStatus: 'active',
       rating:        role === 'rider' ? 5.0 : undefined,
       createdAt: now, lastSeen: now,
-      phoneVerified: !!phoneVerified,
+      phoneVerified: true,  // server-verified via OTP above
       companyName:   corpProfile?.companyName,
       vehicleReg:    vehicleDets?.registration,
       vehicleModel:  vehicleDets ? `${vehicleDets.make} ${vehicleDets.model} ${vehicleDets.year}` : undefined,
@@ -347,6 +361,10 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
         ...(isPending ? {} : { reviewedAt: now, reviewedBy: 'Auto' }),
       },
     })
+
+    // Consume the OTP so it can't be reused for another registration
+    verifiedOtp.used = true
+    await verifiedOtp.save()
 
     logActivity('verification', isPending ? 'warning' : 'info',
       isPending
@@ -451,17 +469,26 @@ app.patch('/api/users/me/profile', authMiddleware, async (req, res) => {
 // ─── OTP routes ───────────────────────────────────────────────────────────
 app.post('/api/auth/otp/send', otpLimiter, async (req, res) => {
   try {
-    const { phone } = req.body
+    const { phone, purpose = 'reset' } = req.body
     if (!phone) return res.status(400).json({ message: 'Phone required' })
     const candidates = phoneCandidates(phone)
+
+    // For reset, user must exist. For register, user must NOT exist.
     const user = await User.findOne({ phone: { $in: candidates } })
-    if (!user) return res.status(404).json({ message: 'No account found with this number' })
+    if (purpose === 'register') {
+      if (user) return res.status(409).json({ message: 'An account with this number already exists. Please sign in.' })
+    } else {
+      if (!user) return res.status(404).json({ message: 'No account found with this number' })
+    }
+
+    // Normalize phone for OTP storage. For registration we don't have a user
+    // yet, so pick a reasonable canonical form (prefer +263... if derivable).
+    const canonical = user?.phone || candidates.find(c => c.startsWith('+263')) || candidates[0]
 
     const code      = String(Math.floor(100000 + Math.random() * 900000))
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000)
-    // Always store against the canonical (user's own) phone so verify can match
-    await OTP.create({ phone: user.phone, code, expiresAt })
-    await sendOtp(user.phone, code)
+    await OTP.create({ phone: canonical, code, expiresAt })
+    await sendOtp(canonical, code)
     const devMode = !process.env.AT_API_KEY
     res.json({ ok: true, ...(devMode && { devCode: code }) })
   } catch (err) { res.status(500).json({ message: err.message }) }
@@ -469,12 +496,27 @@ app.post('/api/auth/otp/send', otpLimiter, async (req, res) => {
 
 app.post('/api/auth/otp/verify', otpLimiter, async (req, res) => {
   try {
-    const { phone, code } = req.body
+    const { phone, code, purpose = 'reset' } = req.body
     const candidates = phoneCandidates(phone)
+
+    // Find the OTP against any phone-equivalent form (handles both logged-in
+    // users and pre-registration where no User row exists yet).
+    const otp = await OTP.findOne({
+      phone: { $in: candidates }, code, used: false, expiresAt: { $gt: new Date() },
+    })
+    if (!otp) return res.status(400).json({ message: 'Invalid or expired OTP' })
+
+    if (purpose === 'register') {
+      // Mark verified (but NOT used — /register consumes it below). This way
+      // /register can enforce "OTP was verified first" without trusting
+      // a client-supplied phoneVerified flag.
+      otp.verifiedAt = new Date()
+      await otp.save()
+      return res.json({ verified: true })
+    }
+
     const user = await User.findOne({ phone: { $in: candidates } })
     if (!user) return res.status(404).json({ message: 'User not found' })
-    const otp = await OTP.findOne({ phone: user.phone, code, used: false, expiresAt: { $gt: new Date() } })
-    if (!otp) return res.status(400).json({ message: 'Invalid or expired OTP' })
     otp.used = true
     await otp.save()
     res.json({ token: makeToken(user), user: safeUser(user) })

@@ -174,12 +174,21 @@ export default function MapView({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rFrom?.lat, rFrom?.lng, rTo?.lat, rTo?.lng])
 
-  if (loadError) return (
-    <div className={`bg-700 rounded-xl d-flex align-items-center justify-content-center ${className}`}
-      style={{ minHeight: 120 }}>
-      <p className="text-muted small mb-0">Map unavailable</p>
-    </div>
-  )
+  if (loadError) {
+    // Log the actual error so the browser console shows WHY the map is failing
+    // (missing key, billing not enabled, referrer blocked, API not enabled, etc.)
+    console.error('[MapView] Google Maps failed to load:', loadError)
+    const hint = !API_KEY
+      ? 'VITE_GOOGLE_MAPS_KEY is not set'
+      : 'Check Google Cloud Console → billing enabled + Maps JavaScript API enabled + current domain in Website restrictions'
+    return (
+      <div className={`bg-700 rounded-xl d-flex flex-column align-items-center justify-content-center p-3 ${className}`}
+        style={{ minHeight: 120 }}>
+        <p className="text-muted small mb-1">Map unavailable</p>
+        <p className="text-xs text-muted text-center mb-0" style={{ opacity: 0.7 }}>{hint}</p>
+      </div>
+    )
+  }
 
   if (!isLoaded) return (
     <div className={`bg-700 rounded-xl d-flex align-items-center justify-content-center ${className}`}
